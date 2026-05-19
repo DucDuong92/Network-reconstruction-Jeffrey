@@ -65,13 +65,13 @@ $$
 The feasible curve used by the Jeffreys-prior averaging procedure is defined by
 the single total-link constraint:
 
-$$
+```math
 C(g,\gamma)
 \equiv
-\sum_{i \lt j} p_{ij}(g,\gamma)
+\sum_{i < j} p_{ij}(g,\gamma)
 - L_{\mathrm{total}}
-= 0 .
-$$
+= 0.
+```
 
 This wording is deliberate: the curve is the **feasible curve** induced by the
 observed `L_total`; the Jeffreys prior is then computed along this curve.
