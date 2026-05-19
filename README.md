@@ -1,52 +1,172 @@
-# trade_jeffreys
+# Network Reconstruction Jeffrey
 
-Jeffreys-prior network reconstruction under missing sufficient statistics.
+Reusable Python package for trade-network reconstruction with the Fitness Model,
+the Fitness-Corrected Block Model in planted-partition form, and the Jeffreys-prior
+feasible-curve method for missing sufficient statistics.
 
-This package implements the low-level workflow used in the synthetic example notebook
-`jeffreys_synthetic_usage.ipynb`. The workflow estimates a planted-partition network
-model when the observed total number of links is known, while finer sufficient
-statistics such as intra-block and inter-block link counts may be unavailable.
+The package provides a low-level synthetic workflow matching
+`trade_jeffreys/notebooks/jeffreys_synthetic_usage.ipynb`. The workflow starts
+from node fitnesses, block labels, total links, intra-block links, inter-block
+links, and an optional observed adjacency matrix. It then computes the
+full-information reference parameters, the Jeffreys-prior median-entropy
+solution, diagnostics, metrics, and plots.
 
-Associated article: **Network Reconstruction via Jeffreys Prior under Missing Sufficient Statistics**  
-by Minh Duc Duong and Diego Garlaschelli.
+This package is associated with the research article:
 
-## Model
+> **Network Reconstruction via Jeffreys Prior under Missing Sufficient Statistics**  
+> Minh Duc Duong and Diego Garlaschelli, 2026.  
+> Google Scholar record: <https://scholar.google.com/citations?view_op=view_citation&hl=en&user=ps0A1EYAAAAJ&citation_for_view=ps0A1EYAAAAJ:d1gkVwhDpl0C>
+
+The paper studies binary reconstruction of international trade networks when only
+node fitnesses, block labels, and the total number of links are available. The core
+contribution is a Jeffreys-prior averaging procedure over the one-dimensional
+feasible curve defined by the total-link constraint.
+
+## Authors and License
+The source code in this repository is released under the BSD 3-Clause License.
+
+The accompanying paper, explanatory text, and documentation are associated with the article
+"Network Reconstruction via Jeffreys Prior under Missing Sufficient Statistics" and may be
+distributed under CC BY 4.0 where explicitly indicated by the publisher.
+
+Example notebooks are released under the same BSD 3-Clause License as the code unless stated otherwise.
+
+Datasets are not redistributed with this package. Users must obtain the original data from their
+respective providers and comply with the corresponding data licenses.
+
+Package authors and copyright holders:
+
+- Minh Duc Duong
+- Diego Garlaschelli
+
+ See `LICENSE` and `AUTHORS.md` for the package ownership notice.
+
+## Model parameterization
 
 For node fitness values `x_i`, block labels, and binary relation
-`R_ij = 1` when nodes `i` and `j` are in the same block, the package uses
+`R_ij = 1` when nodes `i` and `j` are in the same block, and `R_ij = 0`
+otherwise, the paper's probability
 
-```math
-p_{ij}(g, \gamma) =
-\frac{g e^{\gamma R_{ij}} x_i x_j}
-{1 + g e^{\gamma R_{ij}} x_i x_j},
-\qquad g = e^\beta.
-```
+$$
+p_{ij}(\beta,\gamma)=
+\frac{\exp(\beta)\exp(\gamma R_{ij})x_i x_j}
+{1+\exp(\beta)\exp(\gamma R_{ij})x_i x_j}
+$$
 
-The Jeffreys-prior curve is built from the single total-link constraint
+is represented in code using `g = exp(beta)`:
 
-```math
-\sum_{i<j} p_{ij}(g, \gamma) = L_{total}.
-```
+$$
+p_{ij}(g,\gamma)=
+\frac{g\exp(\gamma R_{ij})x_i x_j}
+{1+g\exp(\gamma R_{ij})x_i x_j},
+\qquad g=\exp(\beta).
+$$
+
+The feasible curve used by the Jeffreys-prior averaging procedure is defined by
+the single total-link constraint:
+
+$$
+C(g,\gamma)\equiv \sum_{i<j}p_{ij}(g,\gamma)-L_{\mathrm{total}}=0.
+$$
+
+This wording is deliberate: the curve is the **feasible curve** induced by the
+observed `L_total`; the Jeffreys prior is then computed along this curve.
 
 The package can also compute a full-information reference point when both
 `L_same` and `L_diff` are available.
 
-## Installation
+## Repository layout
 
-From the project root:
+The current repository layout is:
+
+```text
+.
+├── trade_jeffreys/
+│   ├── notebooks/
+│   │   └── jeffreys_synthetic_usage.ipynb
+│   ├── __init__.py
+│   ├── data_loading.py
+│   ├── jeffreys.py
+│   ├── pipeline.py
+│   ├── plotting.py
+│   ├── regions.py
+│   ├── two_param.py
+│   ├── validation.py
+│   ├── visualisation.py
+│   └── workflow.py
+├── .gitignore
+├── AUTHORS.md
+├── CITATION.cff
+├── LICENSE
+├── MANIFEST.in
+├── README.md
+└── pyproject.toml
+```
+
+Main modules:
+
+| path | purpose |
+|---|---|
+| `trade_jeffreys/regions.py` | region map and plotting colors |
+| `trade_jeffreys/data_loading.py` | data-loading helpers |
+| `trade_jeffreys/pipeline.py` | pipeline utilities for node tables and adjacency matrices |
+| `trade_jeffreys/two_param.py` | two-constraint planted-partition fit and metrics |
+| `trade_jeffreys/jeffreys.py` | Jeffreys feasible-curve scan, resampling, and highlights |
+| `trade_jeffreys/plotting.py` | generic 2D and 3D curve plotting |
+| `trade_jeffreys/visualisation.py` | network and fitness-vs-degree plotting |
+| `trade_jeffreys/validation.py` | edge-data construction, checks, ROC/PR/AIC/BIC |
+| `trade_jeffreys/workflow.py` | workflow-level orchestration helpers |
+| `trade_jeffreys/notebooks/jeffreys_synthetic_usage.ipynb` | complete synthetic usage notebook |
+
+## Installation / import
+
+For local use, place the repository root on your Python path or install the
+package in editable mode from the project root:
 
 ```bash
 pip install -e .
 ```
 
-For notebook usage, also install the usual scientific Python stack if it is not
-already available:
+Core dependencies:
 
-```bash
-pip install numpy pandas matplotlib scikit-learn scipy
+```text
+numpy
+pandas
+matplotlib
+networkx
+scikit-learn
+scipy
 ```
 
-## Input data contract
+For notebooks stored inside `trade_jeffreys/notebooks/`, the first cell can add
+the project root to `sys.path` automatically.
+
+## Synthetic workflow
+
+The paper-level algorithm can be run manually from network-level inputs:
+
+```python
+from trade_jeffreys import (
+    fit_true_params_from_link_counts,
+    run_jeffreys_pipeline,
+    compute_metrics_true_and_median,
+    plot_curve_2d,
+    plot_curve_3d,
+)
+```
+
+The low-level inputs are:
+
+- `country_df`: one row per node, with at least `fitness` and `region` columns;
+- `L_total`: observed total number of links;
+- `L_same`: observed number of intra-block links, used only for the
+  full-information reference fit;
+- `L_diff`: observed number of inter-block links, used only for the
+  full-information reference fit;
+- `adj_matrix`: optional binary adjacency matrix, required for ROC/PR and
+  log-likelihood metrics.
+
+## Input data contract for the synthetic workflow
 
 The core functions expect a node-level `pandas.DataFrame` with at least these
 columns:
@@ -55,7 +175,7 @@ columns:
 |---|---|
 | `ISO3` | node identifier; any unique string is acceptable |
 | `region` | block/community/group label |
-| `fitness` | positive node fitness value, often normalized GDP in trade applications |
+| `fitness` | positive node fitness value |
 
 The optional adjacency matrix should be a square symmetric binary matrix with the
 same node order as `df_raw["ISO3"]`. It is required only for likelihood-based
@@ -102,7 +222,6 @@ block_labels = (
     ["Block_C"] * 6
 )
 
-# Positive node fitnesses. In trade applications, this is often normalized GDP.
 fitness = np.array([
     1.55, 1.40, 1.20, 1.05, 0.90, 0.75,
     1.45, 1.30, 1.10, 0.95, 0.80, 0.65,
@@ -370,17 +489,21 @@ plot_curve_2d(
 
 ![Log-likelihood versus gamma](assets/readme/loglik_vs_gamma.png)
 
-## Exporting synthetic outputs
+## Outputs
 
-Uncomment these lines in the notebook or script to save reproducible artifacts:
+The synthetic workflow produces these main objects:
 
-```python
-country_df.to_csv("synthetic_country_df.csv", index=False)
-adj_matrix.to_csv("synthetic_adjacency.csv")
-curve.to_csv("synthetic_jeffreys_curve.csv", index=False)
-highlight_table.to_csv("synthetic_highlight_points.csv", index=False)
-metrics_table.to_csv("synthetic_metrics.csv")
-```
+| object | content |
+|---|---|
+| `country_df` | one row per node: identifier, block label, and fitness |
+| `adj_matrix` | binary adjacency DataFrame indexed by node identifier |
+| `true_fit` | full-information planted-partition fit from `L_same` and `L_diff` |
+| `jeffreys` | Jeffreys feasible-curve output dictionary |
+| `curve` | sampled feasible-curve table, usually `jeffreys["df_s_uniform_exact"]` |
+| `highlights` | highlight points: min/max/mean/median entropy plus optional true parameters |
+| `highlight_table` | tabular form of the highlight points |
+| `metrics` | ROC/PR/AIC/BIC comparison at True Params and Median Entropy |
+| `metrics_table` | tabular form of `metrics` |
 
 ## Function overview
 
@@ -394,12 +517,18 @@ metrics_table.to_csv("synthetic_metrics.csv")
 
 ## Complete notebook
 
-For a fully executable version of this guide, open:
+For a fully executable version of the synthetic guide, open:
 
 ```text
-jeffreys_synthetic_usage.ipynb
+trade_jeffreys/notebooks/jeffreys_synthetic_usage.ipynb
 ```
 
 The notebook contains the complete synthetic data construction, exact link-count
 verification, model fitting, Jeffreys-prior curve estimation, metric computation,
 figures, and optional CSV export.
+
+## Citation
+
+If this package is used in academic work, cite the article above and mention that
+the implementation is the companion `trade_jeffreys` package by Minh Duc Duong
+and Diego Garlaschelli.
