@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trade-jeffreys"
+version = "0.1.0"
+description = "Jeffreys-prior network reconstruction under missing sufficient statistics."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+  {name = "Minh Duc Duong"},
+  {name = "Diego Garlaschelli"}
+]
+license = {text = "All rights reserved"}
+dependencies = [
+  "numpy",
+  "pandas",
+  "scipy",
+  "matplotlib",
+  "scikit-learn"
+]
+
+[project.urls]
+Paper = "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=ps0A1EYAAAAJ&citation_for_view=ps0A1EYAAAAJ:d1gkVwhDpl0C"
+
+[tool.setuptools]
+packages = ["trade_jeffreys"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+trade_jeffreys = ["*.md", "LICENSE", "CITATION.cff", "notebooks/*.ipynb"]

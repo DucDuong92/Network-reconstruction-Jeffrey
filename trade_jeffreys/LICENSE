@@ -1,0 +1,11 @@
+Copyright (c) 2026 Minh Duc Duong and Diego Garlaschelli.
+All rights reserved.
+
+This package is companion research software for the paper "Network Reconstruction
+via Jeffreys Prior under Missing Sufficient Statistics" by Minh Duc Duong and
+Diego Garlaschelli.
+
+No permission is granted to copy, modify, distribute, sublicense, or use this
+software for commercial purposes except by prior written permission from the
+copyright holders. Academic citation of the associated paper and package does not
+by itself grant a software license.

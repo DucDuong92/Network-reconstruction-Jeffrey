@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local data files
+data/
+*.csv
+*.parquet
+*.xlsx
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
