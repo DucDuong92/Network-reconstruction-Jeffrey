@@ -302,6 +302,70 @@ Count check from the synthetic example:
 | `L_diff` | 25 | 25 |
 | `L_total` | 43 | 43 |
 
+
+### 2.1 Plot the observed network by block
+
+The synthetic example can also visualize the observed binary network before
+running the reconstruction models. Nodes are grouped and colored by their block
+labels, while same-block and different-block links are drawn with different
+edge intensities.
+
+```python
+import networkx as nx
+import matplotlib.pyplot as plt
+
+def plot_network_by_block(adj_matrix, country_df, block_col="region", node_col="ISO3"):
+    labels = country_df[node_col].astype(str).to_list()
+    blocks = country_df[block_col].astype(str).to_numpy()
+
+    G = nx.from_pandas_adjacency(adj_matrix.astype(int))
+    G = nx.relabel_nodes(G, {node: str(node) for node in G.nodes()})
+
+    unique_blocks = list(pd.unique(blocks))
+    block_to_nodes = {
+        block: country_df.loc[country_df[block_col].astype(str) == block, node_col].astype(str).to_list()
+        for block in unique_blocks
+    }
+
+    angles = np.linspace(0, 2 * np.pi, len(unique_blocks), endpoint=False)
+    centers = {
+        block: np.array([3.0 * np.cos(angle), 3.0 * np.sin(angle)])
+        for block, angle in zip(unique_blocks, angles)
+    }
+
+    pos = {}
+    for block, nodes in block_to_nodes.items():
+        local_angles = np.linspace(0, 2 * np.pi, len(nodes), endpoint=False)
+        radius = 0.70 if len(nodes) > 1 else 0.0
+        for node, angle in zip(nodes, local_angles):
+            pos[node] = centers[block] + radius * np.array([np.cos(angle), np.sin(angle)])
+
+    color_map = {block: f"C{i}" for i, block in enumerate(unique_blocks)}
+    node_to_block = dict(zip(labels, blocks))
+
+    node_colors = [color_map[node_to_block[str(node)]] for node in G.nodes()]
+    same_edges = [(u, v) for u, v in G.edges() if node_to_block[str(u)] == node_to_block[str(v)]]
+    diff_edges = [(u, v) for u, v in G.edges() if node_to_block[str(u)] != node_to_block[str(v)]]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    nx.draw_networkx_edges(G, pos, edgelist=diff_edges, width=0.8, alpha=0.30, edge_color="0.55", ax=ax)
+    nx.draw_networkx_edges(G, pos, edgelist=same_edges, width=1.4, alpha=0.65, edge_color="0.25", ax=ax)
+    nx.draw_networkx_nodes(G, pos, node_color=node_colors, node_size=520, linewidths=1.0, edgecolors="white", ax=ax)
+    nx.draw_networkx_labels(G, pos, font_size=8, font_color="black", ax=ax)
+
+    for block, center in centers.items():
+        ax.text(center[0], center[1] + 1.15, block, ha="center", va="center", fontsize=10, fontweight="bold")
+
+    ax.set_title("Synthetic observed network grouped by block")
+    ax.set_axis_off()
+    fig.tight_layout()
+    return fig, ax
+
+plot_network_by_block(adj_matrix, country_df)
+```
+
+![Synthetic observed network grouped by block](assets/readme/synthetic_network_by_block.png)
+
 ### 3. Fit the full-information planted-partition reference
 
 This reference uses both `L_same` and `L_diff` and corresponds to the paper's
