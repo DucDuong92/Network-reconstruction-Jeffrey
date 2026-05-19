@@ -72,7 +72,6 @@ Notebook examples are also provided at:
 
 ```text
 trade_jeffreys/notebooks/jeffreys_synthetic_usage.ipynb
-trade_jeffreys/notebooks/BACI20_wood_real_data_usage.ipynb
 ```
 
 The synthetic notebook demonstrates a network workflow in which the user initializes node
@@ -80,7 +79,7 @@ fitnesses, block labels, total links, intra-block links, and inter-block links;
 then computes the full-information reference parameters, the Jeffreys median
 entropy solution, metrics, and plots matching the paper's figures.
 
-The BACI 2020 wood notebook is a real-data reproduction example. It expects `BACI20.csv`, `gravity20.csv`, and `BACIcountry.csv` to be available locally and reproduces the Wood 2020 metrics reported in the paper.
+An example for the BACI 2020 Wood data set is provided as html file. It is a real-data reproduction example. It expects `BACI20.csv`, `gravity20.csv`, and `BACIcountry.csv` to be available locally and reproduces the Wood 2020 metrics reported in the paper.
 
 ## Installation / import
 
