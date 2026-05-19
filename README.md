@@ -1,161 +1,88 @@
 # trade_jeffreys
 
-Reusable Python package for trade-network reconstruction with the Fitness Model,
-the Fitness-Corrected Block Model in planted-partition form, and the Jeffreys-prior
-feasible-curve method for missing sufficient statistics.
+Jeffreys-prior network reconstruction under missing sufficient statistics.
 
-This package is associated with the research article:
+This package implements the low-level workflow used in the synthetic example notebook
+`jeffreys_synthetic_usage.ipynb`. The workflow estimates a planted-partition network
+model when the observed total number of links is known, while finer sufficient
+statistics such as intra-block and inter-block link counts may be unavailable.
 
-> **Network Reconstruction via Jeffreys Prior under Missing Sufficient Statistics**  
-> Minh Duc Duong and Diego Garlaschelli, 2026.  
-> Google Scholar record: <https://scholar.google.com/citations?view_op=view_citation&hl=en&user=ps0A1EYAAAAJ&citation_for_view=ps0A1EYAAAAJ:d1gkVwhDpl0C>
+Associated article: **Network Reconstruction via Jeffreys Prior under Missing Sufficient Statistics**  
+by Minh Duc Duong and Diego Garlaschelli.
 
-The paper studies binary reconstruction of international trade networks when only
-node fitnesses, block labels, and the total number of links are available. The core
-contribution is a Jeffreys-prior averaging procedure over the one-dimensional
-feasible curve defined by the total-link constraint.
+## Model
 
-## Authors and ownership
+For node fitness values `x_i`, block labels, and binary relation
+`R_ij = 1` when nodes `i` and `j` are in the same block, the package uses
 
-Package authors and copyright holders:
-
-- Minh Duc Duong
-- Diego Garlaschelli
-
-## License
-
-The source code in this repository is released under the BSD 3-Clause License.
-
-The accompanying paper is published under CC BY 4.0 by the publisher/funder, where applicable.
-
-Datasets are not redistributed with this package. Users must obtain the original data from the respective providers and comply with their licenses. See
-`LICENSE` and `AUTHORS.md` for the package ownership notice.
-
-## Model parameterization
-
-The package uses `g = exp(beta)` internally. Therefore the paper's probability
-
-```text
-p_ij(beta, gamma) = exp(beta) exp(gamma R_ij) x_i x_j /
-                    (1 + exp(beta) exp(gamma R_ij) x_i x_j)
+```math
+p_{ij}(g, \gamma) =
+\frac{g e^{\gamma R_{ij}} x_i x_j}
+{1 + g e^{\gamma R_{ij}} x_i x_j},
+\qquad g = e^\beta.
 ```
 
-is represented in code as
+The Jeffreys-prior curve is built from the single total-link constraint
 
-```text
-p_ij(g, gamma) = g exp(gamma R_ij) x_i x_j /
-                 (1 + g exp(gamma R_ij) x_i x_j)
+```math
+\sum_{i<j} p_{ij}(g, \gamma) = L_{total}.
 ```
 
-where `R_ij = 1` for nodes in the same block and `R_ij = 0` otherwise.
+The package can also compute a full-information reference point when both
+`L_same` and `L_diff` are available.
 
-## Package layout
+## Installation
 
-```text
-trade_jeffreys/
-├── regions.py          World Bank region map and colors
-├── data_loading.py     BACI / UN Comtrade loading utilities and HS filters
-├── pipeline.py         GDP / region pipeline to country_df and adj_matrix
-├── two_param.py        two-constraint planted-partition fit and metrics
-├── jeffreys.py         Jeffreys feasible-curve scan, resampling, highlights
-├── plotting.py         generic 2D and 3D curve plotting
-├── visualisation.py    network and GDP-vs-degree plotting
-├── validation.py       ROC/PR/AIC/BIC and paper-style comparison helpers
-├── workflow.py         ProductConfig and run_product_analysis()
-├── examples.py         small script-style examples
-├── USAGE.md            detailed usage guide
-├── AUTHORS.md          package authorship and ownership notice
-└── LICENSE             copyright and rights notice
+From the project root:
+
+```bash
+pip install -e .
 ```
 
-Notebook examples are also provided at:
+For notebook usage, also install the usual scientific Python stack if it is not
+already available:
 
-```text
-trade_jeffreys/notebooks/jeffreys_synthetic_usage.ipynb
+```bash
+pip install numpy pandas matplotlib scikit-learn scipy
 ```
 
-The synthetic notebook demonstrates a network workflow in which the user initializes node
-fitnesses, block labels, total links, intra-block links, and inter-block links;
-then computes the full-information reference parameters, the Jeffreys median
-entropy solution, metrics, and plots matching the paper's figures.
+## Input data contract
 
-An example for the BACI 2020 Wood data set is provided as html file. It is a real-data reproduction example. It expects `BACI20.csv`, `gravity20.csv`, and `BACIcountry.csv` to be available locally and reproduces the Wood 2020 metrics reported in the paper.
+The core functions expect a node-level `pandas.DataFrame` with at least these
+columns:
 
-## Installation / import
+| column | meaning |
+|---|---|
+| `ISO3` | node identifier; any unique string is acceptable |
+| `region` | block/community/group label |
+| `fitness` | positive node fitness value, often normalized GDP in trade applications |
 
-For local use, place the `trade_jeffreys/` folder on your Python path and import:
+The optional adjacency matrix should be a square symmetric binary matrix with the
+same node order as `df_raw["ISO3"]`. It is required only for likelihood-based
+metrics such as ROC AUC, PR AUC, AIC, and BIC.
+
+## Minimal synthetic usage
 
 ```python
-from trade_jeffreys import ProductConfig, run_product_analysis
+from pathlib import Path
+import sys
+
+# Optional helper for notebooks: locate the local package when running from
+# either the project root or a notebooks/ folder.
+cwd = Path.cwd().resolve()
+for candidate in [cwd, cwd.parent, cwd.parent.parent, cwd.parent.parent.parent]:
+    if (candidate / "trade_jeffreys" / "__init__.py").exists():
+        sys.path.insert(0, str(candidate))
+        print(f"Using project root: {candidate}")
+        break
+else:
+    raise RuntimeError("Could not locate the trade_jeffreys package folder.")
 ```
-
-For notebooks stored inside `trade_jeffreys/notebooks/`, the first cell adds the
-project root to `sys.path` automatically.
-
-Core dependencies:
-
-```text
-numpy
-pandas
-matplotlib
-networkx
-scikit-learn
-```
-
-## Quick start: product-level workflow
-
-### BACI source
 
 ```python
-from trade_jeffreys import ProductConfig, run_product_analysis
+import numpy as np
+import pandas as pd
 
-cfg = ProductConfig(
-    name="Cocoa (HS180500)",
-    source="baci",
-    trade_path="BACI19.csv",
-    gravity_path="gravity19.csv",
-    code_path="BACIcountry.csv",
-    hs_codes=["180500"],
-    hs_match="exact",
-    output_prefix="BACI19_choco",  # optional CSV export
-)
-
-result = run_product_analysis(cfg, do_plots=True, verbose=True)
-```
-
-To analyze a product family by HS prefix:
-
-```python
-cfg = ProductConfig(
-    name="All cocoa products (HS18*)",
-    source="baci",
-    trade_path="BACI19.csv",
-    gravity_path="gravity19.csv",
-    code_path="BACIcountry.csv",
-    hs_codes=["18"],
-    hs_match="prefix",
-)
-```
-
-### UN Comtrade source
-
-```python
-cfg = ProductConfig(
-    name="Steel (UN17)",
-    source="uncom",
-    trade_path="UNcom17_steel.csv",
-    gravity_path="gravity17.csv",
-)
-
-result = run_product_analysis(cfg, do_plots=False, verbose=True)
-```
-
-## Lower-level workflow
-
-`run_product_analysis` is a convenience wrapper. The paper-level algorithm can
-also be run manually from network-level inputs:
-
-```python
 from trade_jeffreys import (
     fit_true_params_from_link_counts,
     run_jeffreys_pipeline,
@@ -165,39 +92,314 @@ from trade_jeffreys import (
 )
 ```
 
-The low-level inputs are:
+### 1. Define network-level inputs
 
-- `country_df`: one row per node, with at least `fitness` and `region` columns;
-- `L_total`: observed total number of links;
-- `L_same`: observed number of intra-block links, used only for the
-  full-information reference fit;
-- `L_diff`: observed number of inter-block links, used only for the
-  full-information reference fit;
-- `adj_matrix`: optional binary adjacency matrix, required for ROC/PR and
-  log-likelihood metrics.
+```python
+node_ids = [f"N{i:02d}" for i in range(18)]
+block_labels = (
+    ["Block_A"] * 6 +
+    ["Block_B"] * 6 +
+    ["Block_C"] * 6
+)
 
-## Outputs
+# Positive node fitnesses. In trade applications, this is often normalized GDP.
+fitness = np.array([
+    1.55, 1.40, 1.20, 1.05, 0.90, 0.75,
+    1.45, 1.30, 1.10, 0.95, 0.80, 0.65,
+    1.35, 1.15, 1.00, 0.85, 0.70, 0.55,
+])
+fitness = fitness / fitness.max()
 
-`run_product_analysis(cfg)` returns a dictionary containing:
+country_df = pd.DataFrame({
+    "ISO3": node_ids,
+    "region": block_labels,
+    "fitness": fitness,
+})
 
-| key             | content                                                |
-|-----------------|--------------------------------------------------------|
-| `df_long`       | cleaned long edge table with GDP and region columns    |
-| `country_df`    | one row per country: ISO3, GDP, region, fitness        |
-| `adj_matrix`    | binary adjacency DataFrame indexed by ISO3             |
-| `two_param`     | two-constraint fit plus metrics/AIC/BIC                |
-| `true_fit`      | full-information planted-partition fit                 |
-| `jeffreys`      | Jeffreys feasible curve, uniform samples, highlights   |
-| `hp`            | highlight points: min/max/mean/median entropy + true   |
-| `metrics_2pts`  | ROC/PR/AIC/BIC at True Params and Median Entropy       |
+# Observed sufficient statistics for the full-information reference model.
+# The Jeffreys-prior method below uses only L_total.
+L_same = 18
+L_diff = 25
+L_total = L_same + L_diff
+```
 
-## Citation
+Example node table:
 
-If this package is used in academic work, cite the article above and mention that
-the implementation is the companion `trade_jeffreys` package by Minh Duc Duong
-and Diego Garlaschelli.
+| ISO3 | region | fitness |
+|---|---|---:|
+| N00 | Block_A | 1.000000 |
+| N01 | Block_A | 0.903226 |
+| N02 | Block_A | 0.774194 |
+| N03 | Block_A | 0.677419 |
+| N04 | Block_A | 0.580645 |
 
+### 2. Provide or construct an adjacency matrix
 
-## AIC/BIC convention
+In a real application, use the observed binary network. For a synthetic example,
+construct a deterministic matrix with the requested same-block and different-block
+link counts:
 
-AIC and BIC are computed on unordered dyads (`i < j`) by default, with `N = n * (n - 1) / 2` observations in the BIC penalty. This matches the convention used in the paper's Table 3 for undirected binary networks.
+```python
+def build_adjacency_from_counts(country_df, L_same, L_diff, seed=7):
+    """Construct a symmetric binary adjacency matrix with exact block counts."""
+    rng = np.random.default_rng(seed)
+    x = country_df["fitness"].to_numpy(float)
+    labels = country_df["region"].astype(str).to_numpy()
+    n = len(country_df)
+
+    same_pairs = []
+    diff_pairs = []
+    for i in range(n):
+        for j in range(i + 1, n):
+            same = labels[i] == labels[j]
+            # Fitness-based score plus tiny random jitter to break ties.
+            score = x[i] * x[j] * (1.35 if same else 1.0) + 1e-6 * rng.normal()
+            if same:
+                same_pairs.append((score, i, j))
+            else:
+                diff_pairs.append((score, i, j))
+
+    if L_same > len(same_pairs):
+        raise ValueError("L_same exceeds the number of same-block pairs.")
+    if L_diff > len(diff_pairs):
+        raise ValueError("L_diff exceeds the number of different-block pairs.")
+
+    A = np.zeros((n, n), dtype=int)
+    for _, i, j in sorted(same_pairs, reverse=True)[:L_same]:
+        A[i, j] = A[j, i] = 1
+    for _, i, j in sorted(diff_pairs, reverse=True)[:L_diff]:
+        A[i, j] = A[j, i] = 1
+
+    return pd.DataFrame(A, index=country_df["ISO3"], columns=country_df["ISO3"])
+
+adj_matrix = build_adjacency_from_counts(country_df, L_same, L_diff)
+```
+
+Count check from the synthetic example:
+
+| quantity | target | observed_in_adj_matrix |
+|---|---:|---:|
+| `L_same` | 18 | 18 |
+| `L_diff` | 25 | 25 |
+| `L_total` | 43 | 43 |
+
+### 3. Fit the full-information planted-partition reference
+
+This reference uses both `L_same` and `L_diff` and corresponds to the paper's
+full-information planted-partition point.
+
+```python
+true_fit = fit_true_params_from_link_counts(
+    df_raw=country_df,
+    L_same_obs=L_same,
+    L_diff_obs=L_diff,
+    adj_matrix=adj_matrix,
+)
+
+true_summary = pd.DataFrame([{
+    "beta": true_fit["beta"],
+    "g = exp(beta)": true_fit["g"],
+    "gamma": true_fit["gamma"],
+    "entropy": true_fit["entropy"],
+    "loglik": true_fit["loglik"],
+    "pred_links": true_fit["pred_links"],
+}])
+```
+
+Example output:
+
+| beta | g = exp(beta) | gamma | entropy | loglik | pred_links |
+|---:|---:|---:|---:|---:|---:|
+| -0.361228 | 0.696820 | 0.820880 | 86.502928 | -71.220090 | 43 |
+
+### 4. Run the Jeffreys-prior pipeline using only `L_total`
+
+The estimation step below intentionally hides `L_same` and `L_diff` from the
+Jeffreys-prior pipeline. The full-information fit is passed only as a highlight
+point for comparison.
+
+```python
+true_params = {k: true_fit[k] for k in ("g", "gamma", "entropy", "loglik")}
+
+grid = np.linspace(1e-4, 4.0, 800)
+
+jeffreys = run_jeffreys_pipeline(
+    df_raw=country_df,
+    total_links=L_total,
+    g_range=grid,
+    true_params=true_params,
+    resample_points=250,
+    max_link_error=1e-6,
+    adj_matrix=adj_matrix,
+)
+
+curve = jeffreys["df_s_uniform_exact"]
+highlights = jeffreys["highlights"]
+```
+
+The `curve` table contains sampled feasible-curve points, including `beta`,
+`g`, `gamma`, predicted links, entropy, log-likelihood, and Jeffreys weights.
+
+### 5. Inspect highlight points
+
+```python
+highlight_table = pd.DataFrame(highlights)
+highlight_table["beta"] = np.log(highlight_table["g"].astype(float))
+highlight_table[["label", "beta", "g", "gamma", "entropy", "loglik"]]
+```
+
+Example output:
+
+| label | beta | g | gamma | entropy | loglik |
+|---|---:|---:|---:|---:|---:|
+| Min Entropy | -8.416373 | 0.000221 | 12.430412 | 8.172050 | -299.298000 |
+| Max Entropy | -0.091780 | 0.912306 | -0.002603 | 88.585500 | -73.461200 |
+| Mean Entropy | -1.218120 | 0.295786 | 2.875220 | 65.256600 | -84.728600 |
+| Median Entropy | -0.882304 | 0.413828 | 2.129810 | 74.908100 | -76.856200 |
+| True Params | -0.361228 | 0.696820 | 0.820880 | 86.502900 | -71.220100 |
+
+### 6. Compute metrics at true parameters and median entropy
+
+For AIC/BIC, the synthetic notebook follows the paper's convention: the
+full-information reference uses two fitted parameters, while the Jeffreys
+median-entropy solution has one effective degree of freedom under the total-link
+constraint.
+
+```python
+metrics = compute_metrics_true_and_median(
+    df_raw=country_df,
+    adj_matrix=adj_matrix,
+    df_uniform=curve,
+    highlights=highlights,
+    k_true=2,
+    k_median=1,
+    aicbic_mode="full_symmetric",
+)
+
+metrics_table = pd.DataFrame(metrics).T
+metrics_table[["g", "gamma", "roc_auc", "pr_auc", "AIC", "BIC", "pred_links"]]
+```
+
+Example output:
+
+| solution | g | gamma | roc_auc | pr_auc | AIC | BIC | pred_links |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| True Params | 0.696820 | 0.820880 | 0.913742 | 0.801724 | 288.881 | 296.328 | 43 |
+| Median Entropy | 0.413828 | 2.129810 | 0.857294 | 0.725047 | 309.425 | 313.148 | 43 |
+
+## Plotting
+
+The plotting helpers reproduce the same diagnostic curves as the example
+notebook.
+
+```python
+plot_curve_3d(
+    curve,
+    z_column="entropy",
+    z_label="Entropy",
+    highlight_points=highlights,
+)
+```
+
+![3D entropy curve](assets/readme/entropy_curve_3d.png)
+
+```python
+plot_curve_2d(
+    curve,
+    x_column="g",
+    y_column="entropy",
+    x_label=r"exp($\beta$)",
+    y_label="Entropy",
+    highlight_points=highlights,
+)
+```
+
+![Entropy versus exp(beta)](assets/readme/entropy_vs_exp_beta.png)
+
+```python
+plot_curve_2d(
+    curve,
+    x_column="gamma",
+    y_column="entropy",
+    x_label=r"$\gamma$",
+    y_label="Entropy",
+    sort_within="gamma",
+    highlight_points=highlights,
+)
+```
+
+![Entropy versus gamma](assets/readme/entropy_vs_gamma.png)
+
+The same curve can be plotted on the log-likelihood scale:
+
+```python
+plot_curve_3d(
+    curve,
+    z_column="loglik",
+    z_label="Log-Likelihood",
+    highlight_points=highlights,
+)
+```
+
+![3D log-likelihood curve](assets/readme/loglik_curve_3d.png)
+
+```python
+plot_curve_2d(
+    curve,
+    x_column="g",
+    y_column="loglik",
+    x_label=r"exp($\beta$)",
+    y_label="Log-Likelihood",
+    highlight_points=highlights,
+)
+```
+
+![Log-likelihood versus exp(beta)](assets/readme/loglik_vs_exp_beta.png)
+
+```python
+plot_curve_2d(
+    curve,
+    x_column="gamma",
+    y_column="loglik",
+    x_label=r"$\gamma$",
+    y_label="Log-Likelihood",
+    sort_within="gamma",
+    highlight_points=highlights,
+)
+```
+
+![Log-likelihood versus gamma](assets/readme/loglik_vs_gamma.png)
+
+## Exporting synthetic outputs
+
+Uncomment these lines in the notebook or script to save reproducible artifacts:
+
+```python
+country_df.to_csv("synthetic_country_df.csv", index=False)
+adj_matrix.to_csv("synthetic_adjacency.csv")
+curve.to_csv("synthetic_jeffreys_curve.csv", index=False)
+highlight_table.to_csv("synthetic_highlight_points.csv", index=False)
+metrics_table.to_csv("synthetic_metrics.csv")
+```
+
+## Function overview
+
+| function | purpose |
+|---|---|
+| `fit_true_params_from_link_counts` | fits the two-parameter full-information planted-partition reference from `L_same` and `L_diff` |
+| `run_jeffreys_pipeline` | builds the feasible curve from `L_total`, computes Jeffreys-weighted points, and returns highlight solutions |
+| `compute_metrics_true_and_median` | compares true/full-information parameters with the Jeffreys median-entropy solution |
+| `plot_curve_2d` | plots entropy or log-likelihood against `g` or `gamma` |
+| `plot_curve_3d` | plots the 3D feasible curve with selected highlight points |
+
+## Complete notebook
+
+For a fully executable version of this guide, open:
+
+```text
+jeffreys_synthetic_usage.ipynb
+```
+
+The notebook contains the complete synthetic data construction, exact link-count
+verification, model fitting, Jeffreys-prior curve estimation, metric computation,
+figures, and optional CSV export.
