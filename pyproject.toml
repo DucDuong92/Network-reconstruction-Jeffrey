@@ -22,6 +22,7 @@ dependencies = [
 ]
 
 [project.urls]
+Repository = "https://github.com/DucDuong92/Network-reconstruction-Jeffrey"
 Paper = "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=ps0A1EYAAAAJ&citation_for_view=ps0A1EYAAAAJ:d1gkVwhDpl0C"
 
 [tool.setuptools]
